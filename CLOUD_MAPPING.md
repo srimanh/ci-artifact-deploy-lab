@@ -1,7 +1,17 @@
-# Cloud transfer: complete in your PDF and here
+# Tested artifact, bounded release
 
-1. Why must failing source tests block build/deploy? How do same-job steps differ from jobs using `needs`? What transfers the tested image between jobs?
-2. Trace build once -> smoke exact image -> push that image -> registry manifest digest -> deploy digest -> inspect revision/image/readiness/authorized HTTP. Distinguish local image ID, registry manifest digest, mutable commit-SHA tag. How does poisoned latest demonstrate the risk?
-3. Explain GitHub OIDC -> narrowly conditioned WIF provider -> dedicated publisher/deployer. Limit repository numeric IDs, audience, approved ref/environment; no untrusted PR deploy. Which jobs need contents: read and id-token: write? Separate publisher, deployer and runtime roles. No JSON keys. Why does local Python/Docker execution still require trusted source and a trusted host?
+## Gate and environments
+Source unittest failure stops the driver before build or deploy. Built-image smoke is separate: source tests do not prove the Dockerfile packaged working bytes. Same-job steps execute in order and share the runner daemon; separate jobs need `needs: test` then `needs: build-push`, plus explicit artifact transfer. `needs` does not share files or images. Transfer a saved tested image with verified transport checksum and reload it, or use a controlled registry candidate by digest; never rebuild silently in deploy.
 
-No cloud account, token, SDK, registry push, hosted Actions run or paid service is required or permitted for this exercise. This document is a design mapping, not proof WIF/cloud deployment worked.
+## Identity chain
+Build candidate once -> smoke exact image -> publish that same image -> obtain authoritative registry manifest digest -> deploy repository@sha256:digest -> verify actual revision, image, traffic, readiness, authorized HTTP and logs. For this beginner design use one tested platform; a multi-platform index is not proof every platform passed smoke.
+
+Local Docker image config ID is not registry manifest digest. Both may start sha256 but hash different objects. A Git commit identifies source, not built bytes; base image changes can change bytes from the same source. Commit-SHA tags and latest are mutable unless registry enforces immutability. A docker-save tar checksum identifies transport file, not registry digest. Local poison probe retags latest to a DECOY image but deploy uses tested ID, so running .Image still equals candidate/tested. HTTP returns source revision too; HTTP alone cannot prove image identity.
+
+## Cloud trust design only
+GitHub OIDC token -> narrowly conditioned WIF provider -> dedicated publisher/deployer service account impersonation. Trust intended numeric repository owner/repository IDs, expected audience and approved main ref/environment claims. Environment changes subject claims, so validate actual claims. Protected branch/environment governance is separate from a branch trigger. Untrusted fork PRs validate read-only, never deploy; avoid privileged triggers consuming untrusted code/artifacts.
+
+Default contents: read. Grant id-token: write only to jobs needing WIF; it permits requesting token, not Google resource access. No service-account JSON keys. Limit roles/iam.workloadIdentityUser to intended deployer account for standard impersonation. Publisher: Artifact Registry Writer on intended repository. Deployer: bounded Cloud Run update rights (assess run.developer for preprovisioned target), serviceAccountUser only on selected runtime identity; image reader/service-agent access depends project location. Runtime identity: only app downstream rights, no push/admin. Invoker access is separate. No broad Owner/Token Creator grants by habit. Pin reviewed action full commit SHAs if authorized team implements this later.
+
+## Evidence limits and execution boundary
+This exercise runs trusted Python and tests on host and Docker on local daemon. It is not a sandbox for untrusted source; source/tests can execute arbitrary code with runner privileges. No socket helper mount, cloud SDK path, registry login/push, token request, hosted Actions run or paid service. Public base-image download is possible during Docker build. Unit tests mock subprocess boundaries; actual local Docker run verifies packaging/identity/HTTP only. Neither proves WIF, IAM, persistent deployment or production correctness. Cloud release verification would need actual authorized environment evidence; none is claimed here.

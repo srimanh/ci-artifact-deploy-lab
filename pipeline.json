@@ -1,5 +1,5 @@
 {
   "order": ["test", "build", "deploy"],
   "deploy_ref": "tested-image-id",
-  "release_mode": "cloud"
+  "release_mode": "local-only"
 }
