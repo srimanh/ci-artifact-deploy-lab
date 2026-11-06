@@ -1,5 +1,5 @@
 {
-  "order": ["build", "deploy", "test"],
+  "order": ["test", "build", "deploy"],
   "deploy_ref": "latest",
   "release_mode": "cloud"
 }
